@@ -2,9 +2,6 @@ package com.mobile.androidplayer;
 
 import java.util.Map;
 
-/**
- * Created by xyb on 2017/11/25.
- */
 
 public interface IMediaPlayer {
 
