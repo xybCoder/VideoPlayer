@@ -17,4 +17,4 @@ android:configChanges="orientation|keyboardHidden|screenSize"
 ```
 
 ### Demo
-![](https://github.com/xybCoder/VideoPlayer/raw/master/images/image1.jpg)
+![](https://github.com/xybCoder/VideoPlayer/blob/master/images/image1.png)
