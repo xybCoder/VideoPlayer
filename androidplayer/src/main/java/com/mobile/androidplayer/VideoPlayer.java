@@ -1,25 +1,36 @@
 package com.mobile.androidplayer;
 
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.SurfaceTexture;
 import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.net.Uri;
 import android.util.AttributeSet;
+import android.util.Log;
+import android.view.Gravity;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
+import java.io.IOException;
 import java.util.Map;
 
+import tv.danmaku.ijk.media.player.AndroidMediaPlayer;
+import tv.danmaku.ijk.media.player.IMediaPlayer;
+import tv.danmaku.ijk.media.player.IjkMediaPlayer;
+
 /**
- * Created by xyb on 2017/11/25.
+ * 播放器
  */
 
 public class VideoPlayer extends FrameLayout
-        implements IMediaPlayer,
-        TextureView.SurfaceTextureListener {
+        implements
+        TextureView.SurfaceTextureListener, com.mobile.androidplayer.IMediaPlayer {
 
+    public static final String TAG="VideoPlayer";
     /**
      * 播放错误
      **/
@@ -88,7 +99,7 @@ public class VideoPlayer extends FrameLayout
     private IMediaPlayer mMediaPlayer;
     private FrameLayout mContainer;
     private CTextureView mTextureView;
-    private NiceVideoPlayerController mController;
+    private AbstractPlayerController mController;
     private SurfaceTexture mSurfaceTexture;
     private Surface mSurface;
     private String mUrl;
@@ -97,11 +108,11 @@ public class VideoPlayer extends FrameLayout
     private boolean continueFromLastPosition = true;
     private long skipToPosition;
 
-    public NiceVideoPlayer(Context context) {
+    public VideoPlayer(Context context) {
         this(context, null);
     }
 
-    public NiceVideoPlayer(Context context, AttributeSet attrs) {
+    public VideoPlayer(Context context, AttributeSet attrs) {
         super(context, attrs);
         mContext = context;
         init();
@@ -121,11 +132,11 @@ public class VideoPlayer extends FrameLayout
         mHeaders = headers;
     }
 
-    public void setController(NiceVideoPlayerController controller) {
+    public void setController(AbstractPlayerController controller) {
         mContainer.removeView(mController);
         mController = controller;
         mController.reset();
-        mController.setNiceVideoPlayer(this);
+        mController.setVideoPlayer(this);
         LayoutParams params = new LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT);
@@ -156,20 +167,20 @@ public class VideoPlayer extends FrameLayout
         if (mMediaPlayer instanceof IjkMediaPlayer) {
             ((IjkMediaPlayer) mMediaPlayer).setSpeed(speed);
         } else {
-            LogUtil.d("只有IjkPlayer才能设置播放速度");
+            Log.d(TAG,"只有IjkPlayer才能设置播放速度");
         }
     }
 
     @Override
     public void start() {
         if (mCurrentState == STATE_IDLE) {
-            NiceVideoPlayerManager.instance().setCurrentNiceVideoPlayer(this);
+            VideoPlayerManager.instance().setCurrentVideoPlayer(this);
             initAudioManager();
             initMediaPlayer();
             initTextureView();
             addTextureView();
         } else {
-            LogUtil.d("NiceVideoPlayer只有在mCurrentState == STATE_IDLE时才能调用start方法.");
+            Log.d(TAG,"VideoPlayer只有在mCurrentState == STATE_IDLE时才能调用start方法.");
         }
     }
 
@@ -185,17 +196,17 @@ public class VideoPlayer extends FrameLayout
             mMediaPlayer.start();
             mCurrentState = STATE_PLAYING;
             mController.onPlayStateChanged(mCurrentState);
-            LogUtil.d("STATE_PLAYING");
+            Log.d(TAG,"STATE_PLAYING");
         } else if (mCurrentState == STATE_BUFFERING_PAUSED) {
             mMediaPlayer.start();
             mCurrentState = STATE_BUFFERING_PLAYING;
             mController.onPlayStateChanged(mCurrentState);
-            LogUtil.d("STATE_BUFFERING_PLAYING");
+            Log.d(TAG,"STATE_BUFFERING_PLAYING");
         } else if (mCurrentState == STATE_COMPLETED || mCurrentState == STATE_ERROR) {
             mMediaPlayer.reset();
             openMediaPlayer();
         } else {
-            LogUtil.d("NiceVideoPlayer在mCurrentState == " + mCurrentState + "时不能调用restart()方法.");
+            Log.d(TAG,"VideoPlayer在mCurrentState == " + mCurrentState + "时不能调用restart()方法.");
         }
     }
 
@@ -205,13 +216,13 @@ public class VideoPlayer extends FrameLayout
             mMediaPlayer.pause();
             mCurrentState = STATE_PAUSED;
             mController.onPlayStateChanged(mCurrentState);
-            LogUtil.d("STATE_PAUSED");
+            Log.d(TAG,"STATE_PAUSED");
         }
         if (mCurrentState == STATE_BUFFERING_PLAYING) {
             mMediaPlayer.pause();
             mCurrentState = STATE_BUFFERING_PAUSED;
             mController.onPlayStateChanged(mCurrentState);
-            LogUtil.d("STATE_BUFFERING_PAUSED");
+            Log.d(TAG,"STATE_BUFFERING_PAUSED");
         }
     }
 
@@ -365,7 +376,7 @@ public class VideoPlayer extends FrameLayout
 
     private void initTextureView() {
         if (mTextureView == null) {
-            mTextureView = new NiceTextureView(mContext);
+            mTextureView = new CTextureView(mContext);
             mTextureView.setSurfaceTextureListener(this);
         }
     }
@@ -409,10 +420,10 @@ public class VideoPlayer extends FrameLayout
             mMediaPlayer.prepareAsync();
             mCurrentState = STATE_PREPARING;
             mController.onPlayStateChanged(mCurrentState);
-            LogUtil.d("STATE_PREPARING");
+            Log.d(TAG,"STATE_PREPARING");
         } catch (IOException e) {
             e.printStackTrace();
-            LogUtil.e("打开播放器发生错误", e);
+            Log.e(TAG,"打开播放器发生错误", e);
         }
     }
 
@@ -435,11 +446,11 @@ public class VideoPlayer extends FrameLayout
         public void onPrepared(IMediaPlayer mp) {
             mCurrentState = STATE_PREPARED;
             mController.onPlayStateChanged(mCurrentState);
-            LogUtil.d("onPrepared ——> STATE_PREPARED");
+            Log.d(TAG,"onPrepared ——> STATE_PREPARED");
             mp.start();
             // 从上次的保存位置播放
             if (continueFromLastPosition) {
-                long savedPlayPosition = NiceUtil.getSavedPlayPosition(mContext, mUrl);
+                long savedPlayPosition = Util.getSavedPlayPosition(mContext, mUrl);
                 mp.seekTo(savedPlayPosition);
             }
             // 跳到指定位置播放
@@ -454,7 +465,7 @@ public class VideoPlayer extends FrameLayout
         @Override
         public void onVideoSizeChanged(IMediaPlayer mp, int width, int height, int sar_num, int sar_den) {
             mTextureView.adaptVideoSize(width, height);
-            LogUtil.d("onVideoSizeChanged ——> width：" + width + "， height：" + height);
+            Log.d(TAG,"onVideoSizeChanged ——> width：" + width + "， height：" + height);
         }
     };
 
@@ -464,7 +475,7 @@ public class VideoPlayer extends FrameLayout
         public void onCompletion(IMediaPlayer mp) {
             mCurrentState = STATE_COMPLETED;
             mController.onPlayStateChanged(mCurrentState);
-            LogUtil.d("onCompletion ——> STATE_COMPLETED");
+            Log.d(TAG,"onCompletion ——> STATE_COMPLETED");
             // 清除屏幕常亮
             mContainer.setKeepScreenOn(false);
         }
@@ -478,7 +489,7 @@ public class VideoPlayer extends FrameLayout
             if (what != -38 && what != -2147483648 && extra != -38 && extra != -2147483648) {
                 mCurrentState = STATE_ERROR;
                 mController.onPlayStateChanged(mCurrentState);
-                LogUtil.d("onError ——> STATE_ERROR ———— what：" + what + ", extra: " + extra);
+                Log.d(TAG,"onError ——> STATE_ERROR ———— what：" + what + ", extra: " + extra);
             }
             return true;
         }
@@ -492,15 +503,15 @@ public class VideoPlayer extends FrameLayout
                 // 播放器开始渲染
                 mCurrentState = STATE_PLAYING;
                 mController.onPlayStateChanged(mCurrentState);
-                LogUtil.d("onInfo ——> MEDIA_INFO_VIDEO_RENDERING_START：STATE_PLAYING");
+                Log.d(TAG,"onInfo ——> MEDIA_INFO_VIDEO_RENDERING_START：STATE_PLAYING");
             } else if (what == IMediaPlayer.MEDIA_INFO_BUFFERING_START) {
                 // MediaPlayer暂时不播放，以缓冲更多的数据
                 if (mCurrentState == STATE_PAUSED || mCurrentState == STATE_BUFFERING_PAUSED) {
                     mCurrentState = STATE_BUFFERING_PAUSED;
-                    LogUtil.d("onInfo ——> MEDIA_INFO_BUFFERING_START：STATE_BUFFERING_PAUSED");
+                    Log.d(TAG,"onInfo ——> MEDIA_INFO_BUFFERING_START：STATE_BUFFERING_PAUSED");
                 } else {
                     mCurrentState = STATE_BUFFERING_PLAYING;
-                    LogUtil.d("onInfo ——> MEDIA_INFO_BUFFERING_START：STATE_BUFFERING_PLAYING");
+                    Log.d(TAG,"onInfo ——> MEDIA_INFO_BUFFERING_START：STATE_BUFFERING_PLAYING");
                 }
                 mController.onPlayStateChanged(mCurrentState);
             } else if (what == IMediaPlayer.MEDIA_INFO_BUFFERING_END) {
@@ -508,23 +519,23 @@ public class VideoPlayer extends FrameLayout
                 if (mCurrentState == STATE_BUFFERING_PLAYING) {
                     mCurrentState = STATE_PLAYING;
                     mController.onPlayStateChanged(mCurrentState);
-                    LogUtil.d("onInfo ——> MEDIA_INFO_BUFFERING_END： STATE_PLAYING");
+                    Log.d(TAG,"onInfo ——> MEDIA_INFO_BUFFERING_END： STATE_PLAYING");
                 }
                 if (mCurrentState == STATE_BUFFERING_PAUSED) {
                     mCurrentState = STATE_PAUSED;
                     mController.onPlayStateChanged(mCurrentState);
-                    LogUtil.d("onInfo ——> MEDIA_INFO_BUFFERING_END： STATE_PAUSED");
+                    Log.d(TAG,"onInfo ——> MEDIA_INFO_BUFFERING_END： STATE_PAUSED");
                 }
             } else if (what == IMediaPlayer.MEDIA_INFO_VIDEO_ROTATION_CHANGED) {
                 // 视频旋转了extra度，需要恢复
                 if (mTextureView != null) {
                     mTextureView.setRotation(extra);
-                    LogUtil.d("视频旋转角度：" + extra);
+                    Log.d(TAG,"视频旋转角度：" + extra);
                 }
             } else if (what == IMediaPlayer.MEDIA_INFO_NOT_SEEKABLE) {
-                LogUtil.d("视频不能seekTo，为直播视频");
+                Log.d(TAG,"视频不能seekTo，为直播视频");
             } else {
-                LogUtil.d("onInfo ——> what：" + what);
+                Log.d(TAG,"onInfo ——> what：" + what);
             }
             return true;
         }
@@ -548,11 +559,11 @@ public class VideoPlayer extends FrameLayout
         if (mCurrentMode == MODE_FULL_SCREEN) return;
 
         // 隐藏ActionBar、状态栏，并横屏
-        NiceUtil.hideActionBar(mContext);
-        NiceUtil.scanForActivity(mContext)
+        Util.hideActionBar(mContext);
+        Util.scanForActivity(mContext)
                 .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
 
-        ViewGroup contentView = (ViewGroup) NiceUtil.scanForActivity(mContext)
+        ViewGroup contentView = (ViewGroup) Util.scanForActivity(mContext)
                 .findViewById(android.R.id.content);
         if (mCurrentMode == MODE_TINY_WINDOW) {
             contentView.removeView(mContainer);
@@ -566,7 +577,7 @@ public class VideoPlayer extends FrameLayout
 
         mCurrentMode = MODE_FULL_SCREEN;
         mController.onPlayModeChanged(mCurrentMode);
-        LogUtil.d("MODE_FULL_SCREEN");
+        Log.d(TAG,"MODE_FULL_SCREEN");
     }
 
     /**
@@ -579,11 +590,11 @@ public class VideoPlayer extends FrameLayout
     @Override
     public boolean exitFullScreen() {
         if (mCurrentMode == MODE_FULL_SCREEN) {
-            NiceUtil.showActionBar(mContext);
-            NiceUtil.scanForActivity(mContext)
+            Util.showActionBar(mContext);
+            Util.scanForActivity(mContext)
                     .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
-            ViewGroup contentView = (ViewGroup) NiceUtil.scanForActivity(mContext)
+            ViewGroup contentView = (ViewGroup) Util.scanForActivity(mContext)
                     .findViewById(android.R.id.content);
             contentView.removeView(mContainer);
             LayoutParams params = new LayoutParams(
@@ -593,7 +604,7 @@ public class VideoPlayer extends FrameLayout
 
             mCurrentMode = MODE_NORMAL;
             mController.onPlayModeChanged(mCurrentMode);
-            LogUtil.d("MODE_NORMAL");
+            Log.d(TAG,"MODE_NORMAL");
             return true;
         }
         return false;
@@ -607,21 +618,21 @@ public class VideoPlayer extends FrameLayout
         if (mCurrentMode == MODE_TINY_WINDOW) return;
         this.removeView(mContainer);
 
-        ViewGroup contentView = (ViewGroup) NiceUtil.scanForActivity(mContext)
+        ViewGroup contentView = (ViewGroup) Util.scanForActivity(mContext)
                 .findViewById(android.R.id.content);
         // 小窗口的宽度为屏幕宽度的60%，长宽比默认为16:9，右边距、下边距为8dp。
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                (int) (NiceUtil.getScreenWidth(mContext) * 0.6f),
-                (int) (NiceUtil.getScreenWidth(mContext) * 0.6f * 9f / 16f));
+                (int) (Util.getScreenWidth(mContext) * 0.6f),
+                (int) (Util.getScreenWidth(mContext) * 0.6f * 9f / 16f));
         params.gravity = Gravity.BOTTOM | Gravity.END;
-        params.rightMargin = NiceUtil.dp2px(mContext, 8f);
-        params.bottomMargin = NiceUtil.dp2px(mContext, 8f);
+        params.rightMargin = Util.dp2px(mContext, 8f);
+        params.bottomMargin = Util.dp2px(mContext, 8f);
 
         contentView.addView(mContainer, params);
 
         mCurrentMode = MODE_TINY_WINDOW;
         mController.onPlayModeChanged(mCurrentMode);
-        LogUtil.d("MODE_TINY_WINDOW");
+        Log.d(TAG,"MODE_TINY_WINDOW");
     }
 
     /**
@@ -630,7 +641,7 @@ public class VideoPlayer extends FrameLayout
     @Override
     public boolean exitTinyWindow() {
         if (mCurrentMode == MODE_TINY_WINDOW) {
-            ViewGroup contentView = (ViewGroup) NiceUtil.scanForActivity(mContext)
+            ViewGroup contentView = (ViewGroup) Util.scanForActivity(mContext)
                     .findViewById(android.R.id.content);
             contentView.removeView(mContainer);
             LayoutParams params = new LayoutParams(
@@ -640,7 +651,7 @@ public class VideoPlayer extends FrameLayout
 
             mCurrentMode = MODE_NORMAL;
             mController.onPlayModeChanged(mCurrentMode);
-            LogUtil.d("MODE_NORMAL");
+            Log.d(TAG,"MODE_NORMAL");
             return true;
         }
         return false;
@@ -672,9 +683,9 @@ public class VideoPlayer extends FrameLayout
     public void release() {
         // 保存播放位置
         if (isPlaying() || isBufferingPlaying() || isBufferingPaused() || isPaused()) {
-            NiceUtil.savePlayPosition(mContext, mUrl, getCurrentPosition());
+            Util.savePlayPosition(mContext, mUrl, getCurrentPosition());
         } else if (isCompleted()) {
-            NiceUtil.savePlayPosition(mContext, mUrl, 0);
+            Util.savePlayPosition(mContext, mUrl, 0);
         }
         // 退出全屏或小窗口
         if (isFullScreen()) {

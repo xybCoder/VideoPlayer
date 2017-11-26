@@ -34,6 +34,7 @@ dependencies {
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
     compile 'tv.danmaku.ijk.media:ijkplayer-armv7a:0.8.4'
     compile 'tv.danmaku.ijk.media:ijkplayer-armv5:0.8.4'
-//    compile 'tv.danmaku.ijk.media:ijkplayer-arm64:0.8.3'
+//    compile 'tv.danmaku.ijk.media:ijkplayer-arm64:0.8.4'
     compile 'tv.danmaku.ijk.media:ijkplayer-x86:0.8.4'
+    compile 'tv.danmaku.ijk.media:ijkplayer-java:0.8.4'
 }
